@@ -46,7 +46,7 @@ import pandas as pd
 
 
 # Constants
-URL = r'https://docs.google.com/spreadsheets/d/1t91TkyvsHIxzxjopXqrtyuFJ7oW1FRe1G4yNaL4oOH8/export?gid={}&format=csv'
+URL = r'https://docs.google.com/spreadsheets/d/1vHjoH-uQi_ADHOWyxBpkz4q9R3Yr5CGGxPWNBdnrRWA/export?gid={}&format=csv'
 FIG_EXTS = 'pdf',# 'png', 'svg', 'eps'  # Which formats to save figures to
 CMAP = truncate_colourmap(plt.cm.plasma_r, start=.2)  # Colourmap to use in figures
 MARKERS = 'osP*Xv^<>p1234'
@@ -145,130 +145,104 @@ class Main(DotDict):
 		plt.rcParams['font.weight'] = 'normal'
 		plt.rcParams['font.size'] = 24
 
+		# Read the dataframes from Google Sheets
+		base_df = pd.read_csv(URL.format(2103778960), index_col=(0, 1))
+		pruning_df = pd.read_csv(URL.format(995585175), index_col=(0, 1, 2, 3))
+		validation_df = pd.read_csv(URL.format(742301031), index_col=(0, 1, 2, 3))
+		ablation_df = pd.read_csv(URL.format(1825603444), index_col=(0, 1, 2))
+		ablation_validation_df = pd.read_csv(URL.format(1985353682), index_col=(0, 1, 2))
 
 
-		unet_sclera_df = pd.read_csv(URL.format(1909047693)) #, index_col=(0, 1))
+		# print(base_df)
+		# print(pruning_df)
 
-		print(unet_sclera_df)
+		# Fill the NaN values in Uniform/Random pruning rows
+		pruning_df.fillna(method='ffill', axis=1, inplace=True)
 
-		if False:
+		print(pruning_df)
+		print("Here")
+		print(pruning_df.index.to_frame())
+		print("here 2")
 
-			# Read the dataframes from Google Sheets
-			base_df = pd.read_csv(URL.format(2103778960), index_col=(0, 1))
-			pruning_df = pd.read_csv(URL.format(995585175), index_col=(0, 1, 2, 3))
-			validation_df = pd.read_csv(URL.format(742301031), index_col=(0, 1, 2, 3))
-			ablation_df = pd.read_csv(URL.format(1825603444), index_col=(0, 1, 2))
-			ablation_validation_df = pd.read_csv(URL.format(1985353682), index_col=(0, 1, 2))
+		for df in (base_df, pruning_df, validation_df, ablation_df, ablation_validation_df):
+			print(f"{df.index.to_frame()=}")
+			print(f"{df.index=}")
+			df.index = pd.MultiIndex.from_frame(df.index.to_frame().fillna(method='ffill'))  # Fill the NaN values from merged cells in the index
+			print(f"{df.index=}")
+			df.sort_index(inplace=True)
+			print(f"{df.index=}")
+			for col in df:
+				df[col] = df[col].apply(convert_percent)  # We have the data formatted as percentages, so convert it into floats
 
 
-			# Fill the NaN values in Uniform/Random pruning rows
-			pruning_df.fillna(method='ffill', axis=1, inplace=True)
+		print(base_df)
+		print(pruning_df)
 
-			for df in (base_df, pruning_df, validation_df, ablation_df, ablation_validation_df):
-				df.index = pd.MultiIndex.from_frame(df.index.to_frame().fillna(method='ffill'))  # Fill the NaN values from merged cells in the index
-				df.sort_index(inplace=True)
-				for col in df:
-					df[col] = df[col].apply(convert_percent)  # We have the data formatted as percentages, so convert it into floats
+		sys.exit()
 
-			for dataset in pruning_df.index.levels[0]:
-				with (self._latex/f'{dataset}.tex').open('w', encoding='utf-8') as latex:
-					ylabel = "mIoU" if dataset == 'MOBIUS' else "IoU"
-					for model in pruning_df.index.levels[1]:
-						base = base_df['(m)IoU'][dataset, model]
+		for dataset in pruning_df.index.levels[0]:
+			with (self._latex/f'{dataset}.tex').open('w', encoding='utf-8') as latex:
+				ylabel = "mIoU" if dataset == 'MOBIUS' else "IoU"
+				for model in pruning_df.index.levels[1]:
+					base = base_df['(m)IoU'][dataset, model]
 
-						for alpha in pruning_df:
-							df = pruning_df[alpha][dataset, model]
-							figname = f'{dataset} - {model} ({alpha.split("=")[1].strip()})'
+					for alpha in pruning_df:
+						df = pruning_df[alpha][dataset, model]
+						figname = f'{dataset} - {model} ({alpha.split("=")[1].strip()})'
 
-							# ScatterLine over different FLOPs
-							with ScatterLine(figname, self._figures, xlabel="FLOPs", xticklabels=("25%", "50%", "75%", "100%"), ylabel=ylabel) as scline:
-								df = df.swaplevel().sort_index(level='Method')
-								for (key, method), colour in colourise(METHODS.items()):
-									scline.plot(np.append(df[key].values, base), label=method, color=colour)
+						# ScatterLine over different FLOPs
+						with ScatterLine(figname, self._figures, xlabel="FLOPs", xticklabels=("25%", "50%", "75%", "100%"), ylabel=ylabel) as scline:
+							df = df.swaplevel().sort_index(level='Method')
+							for (key, method), colour in colourise(METHODS.items()):
+								scline.plot(np.append(df[key].values, base), label=method, color=colour)
 
-						for flops in pruning_df.index.levels[2]:
-							df = pruning_df.T[dataset, model, flops]
-							val_df = validation_df.T[dataset, model, flops]
-							df = df.reindex(METHODS.keys(), axis=1)
-							val_df = val_df.reindex([method for method in METHODS if method in val_df.keys()], axis=1)
+					for flops in pruning_df.index.levels[2]:
+						df = pruning_df.T[dataset, model, flops]
+						val_df = validation_df.T[dataset, model, flops]
+						df = df.reindex(METHODS.keys(), axis=1)
+						val_df = val_df.reindex([method for method in METHODS if method in val_df.keys()], axis=1)
 
-							figname = f'{dataset} - {model} ({flops})'
+						figname = f'{dataset} - {model} ({flops})'
 
-							# ScatterLine over different αs
-							methods = list(METHODS.values())
-							with ScatterLine(figname, self._figures, xlabel="α", xticklabels=(0, 0.1, 0.5, 0.9, 1), ylabel=ylabel) as scline:
-								block_max = df.values.max()
-								for (key, method), colour in colourise(METHODS.items()):
-									row = df[key].values
-									self._write_latex_line(latex, row, block_max, model, flops, method, *pruning_df.index.levels[1:3], methods)
-									scline.plot(row, label=method, color=colour)
+						# ScatterLine over different αs
+						methods = list(METHODS.values())
+						with ScatterLine(figname, self._figures, xlabel="α", xticklabels=(0, 0.1, 0.5, 0.9, 1), ylabel=ylabel) as scline:
+							block_max = df.values.max()
+							for (key, method), colour in colourise(METHODS.items()):
+								row = df[key].values
+								self._write_latex_line(latex, row, block_max, model, flops, method, *pruning_df.index.levels[1:3], methods)
+								scline.plot(row, label=method, color=colour)
 
-							# Bar graph with best α, α=1, and uniform/random/unpruned
-							methods += ["Unpruned"]
-							# best_results = df[df.index != 'α = 1'].max().tolist()[:4]  # Best α on test data
-							best_results = [df[df.index != 'α = 1'].loc[row, col] for col, row in val_df.idxmax().items()]  # Best α on validation data
-							baselines = df[df.index == 'α = 1'].values.flatten().tolist()
-							baseline_results = baselines[:4]
-							other_results = baselines[4:] + [base]
-							with Bar(figname, self._figures, groups=methods, n=2, ylabel=ylabel) as bar:
-								for i, results in enumerate(zip(best_results, baseline_results)):
-									for j, (result, colour, label) in enumerate(zip(results, (CMAP(0), CMAP(.5)), ("IPAD (α = opt.)", "Weights only (α = 1)"))):
-										bar.plot(result, i, j, label=label, color=colour)
-								for i, result in enumerate(other_results):
-									bar.plot(result, i + len(best_results), label="Baseline", color=CMAP(1), width=2)
-								scline.plot([base] * 5, label="Unpruned", color='black')
+						# Bar graph with best α, α=1, and uniform/random/unpruned
+						methods += ["Unpruned"]
+						# best_results = df[df.index != 'α = 1'].max().tolist()[:4]  # Best α on test data
+						best_results = [df[df.index != 'α = 1'].loc[row, col] for col, row in val_df.idxmax().items()]  # Best α on validation data
+						baselines = df[df.index == 'α = 1'].values.flatten().tolist()
+						baseline_results = baselines[:4]
+						other_results = baselines[4:] + [base]
+						with Bar(figname, self._figures, groups=methods, n=2, ylabel=ylabel) as bar:
+							for i, results in enumerate(zip(best_results, baseline_results)):
+								for j, (result, colour, label) in enumerate(zip(results, (CMAP(0), CMAP(.5)), ("IPAD (α = opt.)", "Weights only (α = 1)"))):
+									bar.plot(result, i, j, label=label, color=colour)
+							for i, result in enumerate(other_results):
+								bar.plot(result, i + len(best_results), label="Baseline", color=CMAP(1), width=2)
+							scline.plot([base] * 5, label="Unpruned", color='black')
 
-							# Bar graph with best α, α=0, α=0.5, and α=1
-							# best_results = df.max().tolist()[:4]  # Best α on test data
-							best_results = [df.loc[row, col] for col, row in val_df.idxmax().items()]  # Best α on validation data
-							w0_results = df[df.index == 'α = 0'].values.flatten().tolist()[:4]
-							w05_results = df[df.index == 'α = 0.5'].values.flatten().tolist()[:4]
-							w1_results = df[df.index == 'α = 1'].values.flatten().tolist()[:4]
-							with Bar(f'{figname} - Ablation', self._figures, groups=methods[:4], n=4, ylabel=ylabel) as bar:
-								for i, results in enumerate(zip(best_results, w0_results, w05_results, w1_results)):
-									for (j, (result, colour)), label in zip(enumerate(colourise(results)), ("α = opt.", "α = 0", "α = 0.5", "α = 1")):
-										bar.plot(result, i, j, label=label, color=colour)
+						# Bar graph with best α, α=0, α=0.5, and α=1
+						# best_results = df.max().tolist()[:4]  # Best α on test data
+						best_results = [df.loc[row, col] for col, row in val_df.idxmax().items()]  # Best α on validation data
+						w0_results = df[df.index == 'α = 0'].values.flatten().tolist()[:4]
+						w05_results = df[df.index == 'α = 0.5'].values.flatten().tolist()[:4]
+						w1_results = df[df.index == 'α = 1'].values.flatten().tolist()[:4]
+						with Bar(f'{figname} - Ablation', self._figures, groups=methods[:4], n=4, ylabel=ylabel) as bar:
+							for i, results in enumerate(zip(best_results, w0_results, w05_results, w1_results)):
+								for (j, (result, colour)), label in zip(enumerate(colourise(results)), ("α = opt.", "α = 0", "α = 0.5", "α = 1")):
+									bar.plot(result, i, j, label=label, color=colour)
 
-							if model == 'RITnet':
-								no_1x1_df = ablation_df.query('Method in ["L1 No 1x1 pruning", "L2 No 1x1 pruning"]').T[dataset, flops]
-								weights_only_df = ablation_df.query('Method in ["L1 1x1 = weights only", "L2 1x1 = weights only"]').T[dataset, flops]
-								no_1x1_val_df = ablation_validation_df.query('Method in ["L1 No 1x1 pruning", "L2 No 1x1 pruning"]').T[dataset, flops]
-								weights_only_val_df = ablation_validation_df.query('Method in ["L1 1x1 = weights only", "L2 1x1 = weights only"]').T[dataset, flops]
 
-								# no_1x1_results = no_1x1_df[no_1x1_df.index != 'α = 1'].max().tolist()  # Best α on test data
-								# weights_only_results = weights_only_df[weights_only_df.index != 'α = 1'].max().tolist()  # Best α on test data
-								no_1x1_results = [no_1x1_df[no_1x1_df.index != 'α = 1'].loc[row, col] for col, row in no_1x1_val_df.idxmax().items()]  # Best α on validation data
-								weights_only_results = [weights_only_df[weights_only_df.index != 'α = 1'].loc[row, col] for col, row in weights_only_val_df.idxmax().items()]  # Best α on validation data
 
-								ablation_methods = methods[:2] + methods[4:]
 
-								# Bar graph with best α, no 1x1 pruning, 1x1 weights only, and uniform/random/unpruned
-								with Bar(f'{dataset} ({flops}) - Ablation', self._figures, groups=ablation_methods, n=4, ylabel=ylabel) as bar:
-									for i, results in enumerate(zip(best_results[:2], best_results[2:4], no_1x1_results, weights_only_results)):
-										for j, (result, colour, label) in enumerate(zip(results, (CMAP(0), CMAP(.25), CMAP(.5), CMAP(.75)), ("Classic", "LeGR", "No 1x1 pruning", "1x1 = weights only"))):
-											bar.plot(result, i, j, label=label, color=colour)
-									for i, result in enumerate(other_results):
-										bar.plot(result, i + 2, label="Baseline", color=CMAP(1), width=4)
 
-							# Heatmaps of correlations of α rankings
-							corr = df.corr().dropna(axis=0, how='all').dropna(axis=1, how='all')
-							labels = [METHODS[key] for key in corr.index]
-							with Heatmap(figname, self._figures, labels=labels) as hmap:
-								hmap.plot(corr)
-							with Heatmap(f'{figname} (Norms)', self._figures, xlabels=("Same", "Different"), ylabels=labels) as hmap:
-								hmap.plot([
-									[corr['L1']['L1 LeGR'], np.mean((corr['L1']['L2'], corr['L1']['L2 LeGR']))],
-									[corr['L2']['L2 LeGR'], np.mean((corr['L2']['L1'], corr['L2']['L1 LeGR']))],
-									[corr['L1 LeGR']['L1'], np.mean((corr['L1 LeGR']['L2'], corr['L1 LeGR']['L2 LeGR']))],
-									[corr['L2 LeGR']['L2'], np.mean((corr['L2 LeGR']['L1'], corr['L2 LeGR']['L1 LeGR']))]
-								])
-							with Heatmap(f'{figname} (Methods)', self._figures, xlabels=("Same", "Different"), ylabels=labels) as hmap:
-								hmap.plot([
-									[corr['L1']['L2'], np.mean((corr['L1']['L1 LeGR'], corr['L1']['L2 LeGR']))],
-									[corr['L2']['L1'], np.mean((corr['L2']['L1 LeGR'], corr['L2']['L2 LeGR']))],
-									[corr['L1 LeGR']['L2 LeGR'], np.mean((corr['L1 LeGR']['L1'], corr['L1 LeGR']['L2']))],
-									[corr['L2 LeGR']['L1 LeGR'], np.mean((corr['L2 LeGR']['L1'], corr['L2 LeGR']['L2']))]
-								])
 
 	@classmethod
 	def _write_latex_line(cls, f, row, block_max, model, flops, method, models, flopses, methods):
