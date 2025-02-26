@@ -54,10 +54,11 @@ L1, L2 = (fr"$\mathregular{{L^{n+1}}}$" for n in range(2))
 METHODS = {
 	"L1": L1,
 	"L2": L2,
-	"IPAD_eq": "IPADeq",
 	"Uniform": "Uniform",
 	"Random": "Random",
+	"IPAD_eq": "IPAD_eq",
 }
+
 SCATTERLINE_TICKS = (0, 0.5, 1) # (0, 0.1, 0.5, 0.9, 1)
 
 # Auxiliary stuff
@@ -161,52 +162,12 @@ class Main(DotDict):
 			df.sort_index(inplace=True)
 			for col in df:
 				df[col] = df[col].apply(convert_percent)  # We have the data formatted as percentages, so convert it into floats
-		
-
-		print(f"{pruning_df=}")
-
-
-		# ------FLOPs in correct order------
-		# Above, all indexes are sorted. But percents are strings, so 25% comes before 3%, cause 2 < 3. 
-		# So we need to order them manually
-
-		# FLOPs_percents = ["3.00%", "25.00%", "50.00%", "75.00%", "100.00%"]
-
-		FLOPs_percents = ["3%", "25%", "50%", "75%"] #, "100%"]
-		
-		pruning_df = pruning_df.reindex(FLOPs_percents, axis=0, level="FLOPs")
-		validation_df = validation_df.reindex(FLOPs_percents, axis=0, level="FLOPs")
-
-		# Failed attempts:
-
-		# FLOPs_percents = sorted(pruning_df.index.get_level_values('FLOPs').unique())
-
-		# new_index = pd.MultiIndex.from_product([
-		# 	pruning_df.index.get_level_values('Dataset').unique(),
-		# 	pruning_df.index.get_level_values('Model').unique(),
-		# 	FLOPs_percents,
-		# 	pruning_df.index.get_level_values('Method').unique()
-		# ])
-
-		# pruning_df = pruning_df.reindex(new_index, fill_value=np.nan)
-		# validation_df = validation_df.reindex(new_index, fill_value=np.nan)
-
-
-		# pruning_df = pruning_df.sort_index(level='FLOPs', ascending=True)
-		# validation_df = validation_df.sort_index(level='FLOPs', ascending=True)
-
-		print(f"{pruning_df=}")
-
-
 
 		for dataset in pruning_df.index.levels[0]:
 			with (self._latex/f'{dataset}.tex').open('w', encoding='utf-8') as latex:
 				ylabel = "mIoU" if dataset == 'MOBIUS' else "IoU"
 				for model in pruning_df.index.levels[1]:
 					base = base_df['(m)IoU'][dataset, model]
-					print(f"{base=}")
-
-					print(pruning_df)
 
 					for alpha in pruning_df:
 						df = pruning_df[alpha][dataset, model]
@@ -214,10 +175,7 @@ class Main(DotDict):
 
 						# ScatterLine over different FLOPs
 						with ScatterLine(figname, self._figures, xlabel="FLOPs", xticklabels=("3%", "25%", "50%", "75%", "100%"), ylabel=ylabel) as scline:
-							df = df.swaplevel()
-							df = df.sort_index(level='Method')
-							df = df.reindex(FLOPs_percents, axis=0, level="FLOPs")
-							print(f"{df=}")
+							df = df.swaplevel().sort_index(level='Method')
 							for (key, method), colour in colourise(METHODS.items()):
 								scline.plot(np.append(df[key].values, base), label=method, color=colour)
 
@@ -226,8 +184,6 @@ class Main(DotDict):
 						val_df = validation_df.T[dataset, model, flops]
 						df = df.reindex(METHODS.keys(), axis=1)
 						val_df = val_df.reindex([method for method in METHODS if method in val_df.keys()], axis=1)
-						print(f"{df=}")
-						print(f"{val_df=}")
 
 						figname = f'{dataset} - {model} ({flops})'
 
@@ -244,14 +200,10 @@ class Main(DotDict):
 						# Bar graph with best α, α=1, and uniform/random/unpruned
 						methods += ["Unpruned"]
 						# best_results = df[df.index != 'α = 1'].max().tolist()[:4]  # Best α on test data
-						val_df_idxmax = val_df.idxmax().items()
-						# print(f"{list(val_df_idxmax)=!r}")
-						best_results = [df[df.index != 'α = 1'].loc[row, col] for col, row in val_df_idxmax]  # Best α on validation data
+						best_results = [df[df.index != 'α = 1'].loc[row, col] for col, row in val_df.idxmax().items()]  # Best α on validation data
 						baselines = df[df.index == 'α = 1'].values.flatten().tolist()
-						print(f"{best_results=}")
-						print(f"{baselines=}")
-						baseline_results = baselines[:2]
-						other_results = baselines[2:] + [base]
+						baseline_results = baselines[:4]
+						other_results = baselines[4:] + [base]
 						with Bar(figname, self._figures, groups=methods, n=2, ylabel=ylabel) as bar:
 							for i, results in enumerate(zip(best_results, baseline_results)):
 								for j, (result, colour, label) in enumerate(zip(results, (CMAP(0), CMAP(.5)), ("IPAD (α = opt.)", "Weights only (α = 1)"))):
@@ -282,7 +234,7 @@ class Main(DotDict):
 			f.write(fr" \multirow{{{len(flopses) * len(methods)}}}{{*}}{{{model}}}")
 		f.write(" &")
 		if method == methods[0]:  # First line of specific FLOPs
-			f.write(fr" \multirow{{{len(methods)}}}{{*}}{{{flops}}}".replace('%', r'\%'))
+			f.write(fr" \multirow{{{len(methods)}}}{{*}}{{{flops}}}".replace('%', '\%'))
 		f.write(f" & {method} & ")
 		row_max = row.max()
 		if any(v != row_max for v in row):
@@ -293,7 +245,7 @@ class Main(DotDict):
 		f.write(r" \\")
 		if method == methods[-1]:  # Last line of specific FLOPs
 			if flops != flopses[-1]:  # But not last line of model
-				f.write(r"\cmidrule{2-6}")
+				f.write(r"\cmidrule{2-8}")
 			elif model != models[-1]:  # Also last line of dataset but not last line overall
 				f.write(r"\midrule")
 		f.write("\n")

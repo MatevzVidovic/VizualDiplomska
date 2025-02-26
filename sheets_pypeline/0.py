@@ -1,16 +1,5 @@
 
 
-import logging
-import python_logger.log_helper_off as py_log
-import python_logger.log_helper as py_log_always_on
-
-MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
-MY_LOGGER.setLevel(logging.DEBUG)
-
-py_log_always_on.limitations_setup(max_file_size_bytes=100 * 1024 * 1024)
-handlers = py_log_always_on.file_handler_setup(MY_LOGGER)
-
-
 
 
 
@@ -30,12 +19,12 @@ path = Path(args.path)
 csv_path = path / '0.csv'
 
 csv = pd.read_csv(csv_path)
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 # take only columns: model, test F1, test IoU, val F1, val IoU
 csv = csv[['model', 'test F1', 'test IoU', 'val F1', 'val IoU']]
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 # split model column into pruning_method column and retained_flops_percent column
@@ -46,13 +35,13 @@ def pruning_method(x):
     return concated
 csv['pruning_method'] = csv['model'].apply(pruning_method)
 csv['retained_flops_percent'] = csv['model'].apply(lambda x: x.split('_')[-1])
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 # get retained flops as float
 convert_percent = lambda x: float(x.rstrip('%')) / 100 if isinstance(x, str) else float(x)
 csv['retained_flops'] = csv['retained_flops_percent'].apply(convert_percent)
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 
@@ -80,7 +69,7 @@ methods = {
 
 def get_alpha(x):
     if not x in alphas:
-        return None
+        return 1.0
     return alphas[x]
 
 def get_method(x):
@@ -90,13 +79,13 @@ def get_method(x):
 
 csv['alpha'] = csv['pruning_method'].apply(get_alpha)
 csv['pruning_method'] = csv['pruning_method'].apply(get_method)
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 
 # now make it only be these columns:   pruning_method alpha retained_flops test_IoU test_F1 retained_flops_percent
 csv = csv[['pruning_method', 'alpha', 'retained_flops', 'val IoU', 'val F1', 'test IoU', 'test F1']]
-py_log_always_on.log_manual(MY_LOGGER, csv=csv)
+
 
 
 
@@ -141,7 +130,7 @@ for pr_method in df.index.unique(level='pruning_method'):
 
 print(df.index.unique(level='pruning_method'))
 
-to_csv = path / '1.csv'
+to_csv = path / '1_sheets.csv'
 df.to_csv(to_csv)
 
 # # this proves that multiindex isn't sth that would be obvious from a file
