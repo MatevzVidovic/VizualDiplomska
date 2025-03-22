@@ -34,6 +34,17 @@ import pandas as pd
 
 
 
+
+# python3 lightweight_results_3.py F1_folder
+
+CURR_MODE = "F1"
+
+
+
+
+
+
+
 # f = /asdf/vsdaj/iosad.goi
 # fname = iosad.goi
 # bname = iosad
@@ -145,10 +156,23 @@ class Main(DotDict):
 		plt.rcParams['font.weight'] = 'normal'
 		plt.rcParams['font.size'] = 24
 
-		# Read the dataframes from Google Sheets
-		base_df = pd.read_csv(URL.format(144212901), index_col=(0, 1))
-		pruning_df = pd.read_csv(URL.format(1750575357), index_col=(0, 1, 2, 3))
-		validation_df = pd.read_csv(URL.format(194847198), index_col=(0, 1, 2, 3))
+		
+		global CURR_MODE
+		# curr_mode = "IoU"
+
+		if "IoU" in CURR_MODE:
+			# Read the dataframes from Google Sheets
+			base_df = pd.read_csv(URL.format(1387468740), index_col=(0, 1))
+			pruning_df = pd.read_csv(URL.format(1195425714), index_col=(0, 1, 2, 3))
+			validation_df = pd.read_csv(URL.format(1938173132), index_col=(0, 1, 2, 3))
+		elif "F1" in CURR_MODE:
+			# Read the dataframes from Google Sheets
+			base_df = pd.read_csv(URL.format(496066809), index_col=(0, 1))
+			pruning_df = pd.read_csv(URL.format(1992950069), index_col=(0, 1, 2, 3))
+			validation_df = pd.read_csv(URL.format(1790177320), index_col=(0, 1, 2, 3))
+		else:
+			raise ValueError("The save path must contain either 'IoU' or 'F1'")
+
 
 		# Fill the NaN values in Uniform/Random pruning rows
 		# pruning_df.fillna(method='ffill', axis=1, inplace=True)
@@ -201,16 +225,21 @@ class Main(DotDict):
 
 		for dataset in pruning_df.index.levels[0]:
 			with (self._latex/f'{dataset}.tex').open('w', encoding='utf-8') as latex:
-				ylabel = "mIoU" if dataset == 'MOBIUS' else "IoU"
+				ylabel = CURR_MODE
 				for model in pruning_df.index.levels[1]:
-					base = base_df['(m)IoU'][dataset, model]
+					try:
+						base = base_df['Result'][dataset, model]
+					except KeyError:
+						print(f"{100*'!!!\n'}KeyError for {dataset, model} in the base df. We will skip everything for this model.\n{100*'!!!\n'}")
+						continue
+
 					print(f"{base=}")
 
 					print(pruning_df)
 
 					for alpha in pruning_df:
 						df = pruning_df[alpha][dataset, model]
-						figname = f'{dataset} - {model} ({alpha.split("=")[1].strip()})'
+						figname = f'{dataset} - {model} ({alpha.split("=")[1].strip()})'.replace(" ", "_").replace("%", "pcnt")
 
 						# ScatterLine over different FLOPs
 						with ScatterLine(figname, self._figures, xlabel="FLOPs", xticklabels=("3%", "25%", "50%", "75%", "100%"), ylabel=ylabel) as scline:
@@ -229,7 +258,7 @@ class Main(DotDict):
 						print(f"{df=}")
 						print(f"{val_df=}")
 
-						figname = f'{dataset} - {model} ({flops})'
+						figname = f'{dataset} - {model} ({flops})'.replace(" ", "_").replace("%", "pcnt")
 
 						# ScatterLine over different αs
 						methods = list(METHODS.values())
@@ -284,12 +313,29 @@ class Main(DotDict):
 		if method == methods[0]:  # First line of specific FLOPs
 			f.write(fr" \multirow{{{len(methods)}}}{{*}}{{{flops}}}".replace('%', r'\%'))
 		f.write(f" & {method} & ")
+
+
+
 		row_max = row.max()
-		if any(v != row_max for v in row):
-			f.write(" & ".join(f"${cls._format_latex(v, row_max, block_max)}$" for v in row))
-		else:
-			f.write(fr"\multicolumn{{{len(row)}}}{{c}}{{{cls._format_latex(row[0], float('inf'), float('inf'))}}}")  # Multi-row
-			# f.write(f" & & {cls._format_latex(row[0], float('inf'), float('inf'))} & &")  # Central column
+		if any(v != row_max for v in row): 
+			all_strs = [f'${cls._maybe_make_red_and_bold(f"{value:.2%}", value, row_max, block_max)}$' for value in row]
+			f.write(" & ".join(all_strs).replace('%', r'\%'))
+		else: # If this is the only value in the row, make it span all columns:
+			value = row[0]
+			v = f'${cls._maybe_make_red(f"{value:.2%}", row[0], block_max)}$'
+			f.write(fr"\multicolumn{{{len(row)}}}{{c}}{{{v}}}".replace('%', r'\%'))  # Multi-row
+			# print(f"{row=}")
+			# print(f"{row_max=}")
+			
+
+
+		# row_max = row.max()
+		# if any(v != row_max for v in row):
+		# 	f.write(" & ".join(f"${cls._format_latex(v, row_max, block_max)}$" for v in row))
+		# else:
+		# 	f.write(fr"\multicolumn{{{len(row)}}}{{c}}{{{cls._format_latex(row[0], float('inf'), float('inf'))}}}")  # Multi-row
+		# 	# f.write(f" & & {cls._format_latex(row[0], float('inf'), float('inf'))} & &")  # Central column
+
 		f.write(r" \\")
 		if method == methods[-1]:  # Last line of specific FLOPs
 			if flops != flopses[-1]:  # But not last line of model
@@ -297,14 +343,25 @@ class Main(DotDict):
 			elif model != models[-1]:  # Also last line of dataset but not last line overall
 				f.write(r"\midrule")
 		f.write("\n")
+	
+	@classmethod
+	def _maybe_make_red_and_bold(cls, inner_latex_str, value, row_max, block_max):
+		inner_latex_str = cls._maybe_bolden(inner_latex_str, value, row_max)
+		inner_latex_str = cls._maybe_make_red(inner_latex_str, value, block_max)
+		return inner_latex_str
+	
+	@classmethod
+	def _maybe_make_red(cls, inner_latex_str, value, block_max):
+		if value >= block_max:
+			return fr"\textcolor{{red}}{{{inner_latex_str}}}"
+		return inner_latex_str
 
 	@classmethod
-	def _format_latex(cls, value, row_max, block_max):
-		if value >= block_max:
-			return fr"\textcolor{{red}}{{{cls._format_latex(value, row_max, float('inf'))}}}"
+	def _maybe_bolden(cls, inner_latex_str, value, row_max):
 		if value >= row_max:
-			return fr"\mathbf{{{cls._format_latex(value, float('inf'), float('inf'))}}}"
-		return f"{value:.2%}".replace('%', r'\%')
+			return fr"\mathbf{{{inner_latex_str}}}"
+		return inner_latex_str
+
 
 	##############################
 	# End of main code           #

@@ -25,9 +25,6 @@ csv = pd.read_csv(csv_path)
 
 
 
-# make the csv have a multiindex that is then easier to work with:
-
-df = csv
 
 
 # make the csv have a multiindex that is then easier to work with:
