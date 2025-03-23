@@ -30,3 +30,12 @@ python3 sheets_pypeline/1_sheets.py -p segnet_150_models_errors_sclera
 python3 sheets_pypeline/1_sheets.py -p segnet_300_models_errors_veins
 python3 sheets_pypeline/1_sheets.py -p unet_150_models_errors_sclera
 python3 sheets_pypeline/1_sheets.py -p unet_300_models_errors_veins
+
+
+
+python3 lightweight_results_3.py F1
+
+Then change in the script to:
+CURR_MODE = "IoU"
+
+python3 lightweight_results_3.py IoU

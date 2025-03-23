@@ -37,7 +37,7 @@ import pandas as pd
 
 # python3 lightweight_results_3.py F1_folder
 
-CURR_MODE = "F1"
+CURR_MODE = "IoU"
 
 
 
@@ -57,7 +57,7 @@ CURR_MODE = "F1"
 
 
 # Constants
-URL = r'https://docs.google.com/spreadsheets/d/1t91TkyvsHIxzxjopXqrtyuFJ7oW1FRe1G4yNaL4oOH8/export?gid={}&format=csv'
+URL = r'https://docs.google.com/spreadsheets/d/1g7hjACixUtxcztQUnd-DNuCSMFERORVSAmMYoklG0II/export?gid={}&format=csv'
 FIG_EXTS = 'pdf',# 'png', 'svg', 'eps'  # Which formats to save figures to
 CMAP = truncate_colourmap(plt.cm.plasma_r, start=.2)  # Colourmap to use in figures
 MARKERS = 'osP*Xv^<>p1234'
@@ -69,7 +69,7 @@ METHODS = {
 	"Uniform": "Uniform",
 	"Random": "Random",
 }
-SCATTERLINE_TICKS = (0, 0.5, 1) # (0, 0.1, 0.5, 0.9, 1)
+SCATTERLINE_TICKS = (0, 0.1, 0.5, 0.9, 1)    # (0, 0.5, 1)
 
 # Auxiliary stuff
 FIG_EXTS = ensure_iterable(FIG_EXTS, str)
@@ -230,7 +230,9 @@ class Main(DotDict):
 					try:
 						base = base_df['Result'][dataset, model]
 					except KeyError:
-						print(f"{100*'!!!\n'}KeyError for {dataset, model} in the base df. We will skip everything for this model.\n{100*'!!!\n'}")
+						str1 = 100*'!!!\\n'
+						str2 = '\n' + 100*'!!!\\n'
+						print(f"""{str1}KeyError for {dataset, model} in the base df. We will skip everything for this model.{str2}""")
 						continue
 
 					print(f"{base=}")
