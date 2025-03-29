@@ -37,7 +37,7 @@ import pandas as pd
 
 # python3 lightweight_results_3.py F1_folder
 
-CURR_MODE = "IoU"
+CURR_MODE = "F1"  # "IoU" or "F1"
 
 
 
@@ -61,7 +61,8 @@ URL = r'https://docs.google.com/spreadsheets/d/1g7hjACixUtxcztQUnd-DNuCSMFERORVS
 FIG_EXTS = 'pdf',# 'png', 'svg', 'eps'  # Which formats to save figures to
 CMAP = truncate_colourmap(plt.cm.plasma_r, start=.2)  # Colourmap to use in figures
 MARKERS = 'osP*Xv^<>p1234'
-L1, L2 = (fr"$\mathregular{{L^{n+1}}}$" for n in range(2))
+# L1, L2 = (fr"$\mathregular{{L_{n+1}}}$" for n in range(2))
+L1, L2 = (fr"$\mathregular{{IPAD_{n+1}}}$" for n in range(2))  # For LaTeX rendering
 METHODS = {
 	"L1": L1,
 	"L2": L2,
